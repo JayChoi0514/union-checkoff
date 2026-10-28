@@ -1,0 +1,354 @@
+<title>조합비 체크오프</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* 한 장짜리 장부: 조합원 명단 업로드 → 판정표, 인사 기준 명단은 접어 둠 */
+:root {
+  --bg: #f6f7f5; --surface: #ffffff; --fg: #1d2420; --muted: #66706a;
+  --line: #dde2de; --accent: #2f6b4f; --yes-bg: #e3f0e8; --no-bg: #eeeeec;
+  --warn: #8a5a12; --warn-bg: #f6ecd9;
+  --sans: "IBM Plex Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141816; --surface: #1c211e; --fg: #e4e9e5; --muted: #95a199;
+  --line: #2e3631; --accent: #7cc39d; --yes-bg: #20392b; --no-bg: #262b28;
+  --warn: #e3b768; --warn-bg: #3a2f1c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141816; --surface: #1c211e; --fg: #e4e9e5; --muted: #95a199;
+  --line: #2e3631; --accent: #7cc39d; --yes-bg: #20392b; --no-bg: #262b28;
+  --warn: #e3b768; --warn-bg: #3a2f1c; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); }
+.wrap { max-width: 920px; margin: 0 auto; padding-block: 28px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 16px; }
+h1 { font-size: 1.4rem; margin: 0; text-wrap: balance; }
+h2 { font-size: .95rem; margin: 0; }
+.note { color: var(--muted); font-size: .85rem; margin: 4px 0 0; max-width: 65ch; }
+.banner { background: var(--warn-bg); color: var(--warn); font-size: .85rem; padding: 8px 12px; border-radius: 6px;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; display: grid; gap: 10px; }
+.panel p { margin: 0; font-size: .82rem; color: var(--muted); }
+details.panel { padding: 0; }
+details.panel > summary { cursor: pointer; padding: 12px 14px; font-weight: 600; font-size: .92rem; }
+.refs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; padding: 0 14px 14px; }
+.ref { display: grid; gap: 8px; align-content: start; border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-width: 0; }
+.ref .meta { font-size: .78rem; color: var(--muted); }
+.ref .meta b { color: var(--fg); font-variant-numeric: tabular-nums; }
+textarea { font: inherit; font-family: var(--mono); font-size: .82rem; min-height: 90px; resize: vertical; width: 100%; box-sizing: border-box;
+  color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+label.f { display: grid; gap: 4px; font-size: .75rem; color: var(--muted); letter-spacing: .04em; }
+.grow { flex: 1 1 200px; }
+select, input[type=search], input[type=month], input[type=file] { font: inherit; font-size: .9rem; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; max-width: 100%; }
+button { font: inherit; font-size: .88rem; border-radius: 6px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--surface); }
+button.ghost { background: transparent; color: var(--accent); }
+button.small { padding: 5px 10px; font-size: .8rem; }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.msg { font-size: .82rem; color: var(--accent); }
+.msg.err { color: var(--warn); }
+
+.bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.summary { font-size: .9rem; color: var(--muted); }
+.summary b { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+.table-box { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: .75rem; color: var(--muted); font-weight: 600; letter-spacing: .04em; }
+tbody tr:last-child td { border-bottom: 0; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.num { text-align: right; }
+.dept { color: var(--muted); font-size: .8rem; }
+.ex { font-size: .7rem; color: var(--warn); margin-left: 4px; }
+.pill { display: inline-block; font-size: .78rem; padding: 2px 8px; border-radius: 99px; }
+.pill.yes { background: var(--yes-bg); color: var(--accent); font-weight: 600; }
+.pill.no { background: var(--no-bg); color: var(--muted); }
+.pill.check { background: var(--warn-bg); color: var(--warn); }
+.empty { padding: 24px 12px; color: var(--muted); text-align: center; white-space: normal; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>조합비 체크오프</h1>
+    <p class="note">노조가 보낸 조합원 명단을 올리면 사번으로 인사 기준 명단과 대조해 공제 여부를 바로 판정합니다. 사용자, 팀장, 휴직자 순으로 먼저 걸리는 사유 하나를 적습니다.</p>
+  </header>
+
+  <div class="banner" id="offline" hidden>저장소에 연결되지 않았습니다. 이 화면에서는 아무것도 저장되지 않습니다.</div>
+
+  <section class="panel">
+    <h2>조합원 명단 업로드</h2>
+    <p>엑셀(.xlsx)이나 CSV 파일을 고르거나 표를 그대로 붙여 넣으세요. 첫 줄에 <b>사번 · 이름 · 부서 · 직급 · 조합비</b> 머리글이 있어야 합니다. 같은 달을 다시 올리면 그 달 명단을 통째로 바꿉니다.</p>
+    <div class="row">
+      <label class="f">기준월 <input id="upMonth" type="month"></label>
+      <label class="f grow">파일 <input id="upFile" type="file" accept=".xlsx,.xls,.csv"></label>
+    </div>
+    <textarea id="upPaste" placeholder="사번	이름	부서	직급	조합비&#10;E0001	직원 A	부서 A	사원	15000"></textarea>
+    <div class="row">
+      <button id="upBtn" type="button">업로드하고 판정</button>
+      <span class="msg" id="upMsg"></span>
+    </div>
+  </section>
+
+  <details class="panel" id="refBox">
+    <summary>인사 기준 명단 <span class="dept" id="refSummary"></span></summary>
+    <div class="refs" id="refs"></div>
+  </details>
+
+  <div class="banner" id="stale" hidden>
+    <span id="staleText"></span>
+    <button id="rejudgeBtn" class="small" type="button">이 달 다시 판정</button>
+  </div>
+
+  <div class="controls">
+    <label class="f">월
+      <select id="month"><option value="all">전체</option></select>
+    </label>
+    <label class="f grow">이름 검색
+      <input id="q" type="search" placeholder="예: 직원 A" autocomplete="off">
+    </label>
+    <label class="f">정렬
+      <select id="sort">
+        <option value="desc">공제액 많은 순</option>
+        <option value="asc">공제액 적은 순</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="bar">
+    <div class="summary" id="summary"></div>
+    <div class="row">
+      <span class="msg" id="copyMsg"></span>
+      <button id="copyBtn" class="ghost" type="button">회신용 표 복사</button>
+    </div>
+  </div>
+
+  <div class="table-box">
+    <table>
+      <thead><tr><th>기준월</th><th>사번</th><th>이름</th><th>판정</th><th class="num">공제액(원)</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="5" class="empty">명단을 불러오는 중입니다.</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// 인사 기준 명단: 판정 우선순위 순서
+const REFS = [
+  { key: "users",    label: "사용자",  hint: "인사팀·감사팀 등 사용자에 해당하는 사람" },
+  { key: "managers", label: "팀장",    hint: "팀장 이상 직책자" },
+  { key: "leave",    label: "휴직자",  hint: "현재 휴직 중인 사람" },
+];
+
+const $ = id => document.getElementById(id);
+const won = n => Number(n || 0).toLocaleString("ko-KR");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const monthLabel = m => `${m.slice(0, 4)}년 ${Number(m.slice(5, 7))}월`;
+const normNo = v => String(v ?? "").replace(/\s/g, "").toUpperCase();
+const fmtDate = iso => iso ? iso.slice(0, 10) : "없음";
+
+let db = null;
+let records = [];          // rows 컬렉션
+let refs = {};             // { users: {items, updatedAt}, ... }
+let current = [];
+
+const now = new Date();
+$("upMonth").value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+function judge(empNo) {
+  if (!empNo) return { ok: false, reason: "확인 필요(사번 없음)" };
+  for (const r of REFS) {
+    if ((refs[r.key]?.items || []).some(x => x.empNo === empNo)) return { ok: false, reason: r.label };
+  }
+  return { ok: true, reason: "공제 대상" };
+}
+
+// ---- 표 읽기: 파일 또는 붙여넣기 → 2차원 배열 → 머리글로 열 찾기
+async function readGrid(file, text) {
+  if (file) {
+    if (!window.XLSX) throw new Error("엑셀 읽기 도구를 불러오지 못했습니다. 표를 복사해 붙여 넣어 주세요.");
+    const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" });
+  }
+  return text.split(/\r?\n/).filter(l => l.trim()).map(l => l.split("\t"));
+}
+function mapColumns(grid, wanted) {
+  const h = grid.findIndex(row => row.some(c => /사번|직원번호/.test(String(c))));
+  if (h < 0) return null;
+  const head = grid[h].map(c => String(c).trim());
+  const col = {};
+  for (const [k, re] of Object.entries(wanted)) col[k] = head.findIndex(c => re.test(c));
+  return { col, body: grid.slice(h + 1) };
+}
+const cell = (row, i) => i >= 0 ? String(row[i] ?? "").trim() : "";
+
+// ---- 렌더
+function fillMonths() {
+  const sel = $("month"), keep = sel.value;
+  const months = [...new Set(records.map(r => r.month))].sort().reverse();
+  sel.length = 1;
+  months.forEach(m => sel.add(new Option(monthLabel(m), m)));
+  sel.value = months.includes(keep) || (keep === "all" && sel.dataset.touched) ? keep : (months[0] || "all");
+}
+
+function renderRefs() {
+  $("refSummary").textContent = "· " + REFS.map(r => `${r.label} ${(refs[r.key]?.items || []).length}명`).join(" · ");
+  $("refs").innerHTML = REFS.map(r => {
+    const d = refs[r.key];
+    return `<div class="ref">
+      <h2>${r.label} <span class="dept">${r.hint}</span></h2>
+      <div class="meta"><b>${(d?.items || []).length}</b>명 · 마지막 업데이트 ${fmtDate(d?.updatedAt)}${d?.example ? '<span class="ex">예시</span>' : ""}</div>
+      <input type="file" id="f_${r.key}" accept=".xlsx,.xls,.csv" aria-label="${r.label} 파일">
+      <textarea id="t_${r.key}" placeholder="사번	이름&#10;E0002	직원 B"></textarea>
+      <div class="row"><button class="small" type="button" data-ref="${r.key}">${r.label} 명단 바꾸기</button><span class="msg" id="m_${r.key}"></span></div>
+    </div>`;
+  }).join("");
+}
+
+function render() {
+  const month = $("month").value, q = $("q").value.trim(), dir = $("sort").value === "asc" ? 1 : -1;
+  current = records
+    .filter(r => month === "all" || r.month === month)
+    .filter(r => !q || String(r.name).includes(q))
+    .map(r => ({ ...r, amount: r.ok ? Number(r.dues) || 0 : 0 }))
+    .sort((a, b) => (a.amount - b.amount) * dir || b.month.localeCompare(a.month) || String(a.name).localeCompare(b.name, "ko"));
+
+  const ok = current.filter(r => r.ok);
+  const count = label => current.filter(r => !r.ok && r.reason.startsWith(label)).length;
+  $("summary").innerHTML = current.length
+    ? `${current.length}명 중 공제 대상 <b>${ok.length}</b>명 · 합계 <b>${won(ok.reduce((s, r) => s + r.amount, 0))}</b>원 · 제외 `
+      + REFS.map(r => `${r.label} <b>${count(r.label)}</b>`).join(" · ")
+      + (count("확인") ? ` · 확인 필요 <b>${count("확인")}</b>` : "")
+    : "";
+  $("copyBtn").disabled = !current.length;
+
+  $("rows").innerHTML = current.length ? current.map(r => `
+    <tr>
+      <td class="mono">${esc(r.month)}</td>
+      <td class="mono">${esc(r.empNo)}</td>
+      <td>${esc(r.name)} <span class="dept">${esc(r.dept)} · ${esc(r.rank)}</span>${r.example ? '<span class="ex">예시</span>' : ""}</td>
+      <td><span class="pill ${r.ok ? "yes" : r.reason.startsWith("확인") ? "check" : "no"}">${esc(r.reason)}</span></td>
+      <td class="mono num">${won(r.amount)}</td>
+    </tr>`).join("")
+    : `<tr><td colspan="5" class="empty">${records.length ? "조건에 맞는 사람이 없습니다." : "아직 올린 명단이 없습니다. 위에서 이번 달 조합원 명단을 업로드하세요."}</td></tr>`;
+
+  // 판정 이후 인사 명단이 바뀌었는지
+  const latestRef = REFS.map(r => refs[r.key]?.updatedAt || "").sort().pop() || "";
+  const staleMonth = month !== "all" && records.some(r => r.month === month && !r.example && (r.judgedAt || "") < latestRef);
+  $("stale").hidden = !staleMonth;
+  if (staleMonth) $("staleText").textContent = `${monthLabel(month)} 판정 뒤에 인사 기준 명단이 바뀌었습니다. 회신 전이라면 다시 판정하세요.`;
+}
+
+// ---- 조합원 명단 업로드
+$("upBtn").addEventListener("click", async () => {
+  const msg = $("upMsg"), month = $("upMonth").value;
+  const say = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
+  if (!month) return say("기준월을 고르세요.", true);
+  if (!db) return say("저장소에 연결되지 않아 저장할 수 없습니다.", true);
+  let rows;
+  try {
+    const grid = await readGrid($("upFile").files[0], $("upPaste").value);
+    const m = mapColumns(grid, { empNo: /사번|직원번호/, name: /이름|성명/, dept: /부서|소속/, rank: /직급|직위/, dues: /조합비|금액|공제/ });
+    if (!m) return say("머리글에 '사번' 열이 없습니다. 첫 줄에 사번·이름·부서·직급·조합비를 적어 주세요.", true);
+    rows = m.body.map(c => ({
+      empNo: normNo(cell(c, m.col.empNo)), name: cell(c, m.col.name), dept: cell(c, m.col.dept), rank: cell(c, m.col.rank),
+      dues: Number(cell(c, m.col.dues).replace(/[^\d]/g, "")) || 0,
+    })).filter(r => r.empNo || r.name);
+  } catch (e) { return say(e.message || "파일을 읽지 못했습니다.", true); }
+  if (!rows.length) return say("머리글 아래에 읽을 수 있는 줄이 없습니다.", true);
+
+  $("upBtn").disabled = true; say("저장하고 판정하는 중…");
+  try {
+    // 한 달 명단은 문서 하나에 통째로 저장한다
+    const col = db.collection("months");
+    await col.doc(month).set({ judgedAt: new Date().toISOString(), rows: rows.map(r => ({ ...r, ...judge(r.empNo) })) });
+    for (const d of (await col.where("example", "==", true).get()).docs) await col.doc(d.id).delete();
+    say(`${monthLabel(month)} ${rows.length}명을 판정했습니다.`);
+    $("upPaste").value = ""; $("upFile").value = "";
+    $("month").value = month; render();
+  } catch (e) {
+    say(e?.code === "quota_exceeded" ? "저장 공간이 찼습니다. 오래된 달의 명단을 지워 달라고 요청하세요."
+      : `저장하지 못했습니다(${e?.code || e?.message || "알 수 없는 오류"}). 잠시 뒤 다시 눌러 주세요.`, true);
+  } finally { $("upBtn").disabled = false; }
+});
+
+// ---- 인사 기준 명단 바꾸기
+$("refs").addEventListener("click", async e => {
+  const key = e.target.dataset?.ref;
+  if (!key) return;
+  const r = REFS.find(x => x.key === key), msg = $("m_" + key);
+  const say = (t, err) => { msg.textContent = t; msg.className = "msg" + (err ? " err" : ""); };
+  if (!db) return say("저장소에 연결되지 않았습니다.", true);
+  let items;
+  try {
+    const grid = await readGrid($("f_" + key).files[0], $("t_" + key).value);
+    const m = mapColumns(grid, { empNo: /사번|직원번호/, name: /이름|성명/ });
+    // 머리글이 없으면 첫 열을 사번, 둘째 열을 이름으로 본다
+    items = (m ? m.body.map(c => ({ empNo: normNo(cell(c, m.col.empNo)), name: cell(c, m.col.name) }))
+               : grid.map(c => ({ empNo: normNo(c[0]), name: String(c[1] ?? "").trim() })))
+      .filter(x => x.empNo);
+  } catch (err) { return say(err.message || "파일을 읽지 못했습니다.", true); }
+  if (!items.length) return say("사번을 하나도 읽지 못했습니다.", true);
+  e.target.disabled = true;
+  try {
+    await db.collection("ref").doc(key).set({ items, updatedAt: new Date().toISOString() });
+    say(`${r.label} ${items.length}명으로 바꿨습니다.`);
+  } catch { say("저장하지 못했습니다. 다시 눌러 주세요.", true); e.target.disabled = false; }
+});
+
+// ---- 선택한 달 다시 판정
+$("rejudgeBtn").addEventListener("click", async () => {
+  const month = $("month").value;
+  if (!db || month === "all") return;
+  $("rejudgeBtn").disabled = true;
+  try {
+    const ref = db.collection("months").doc(month), snap = await ref.get();
+    const rows = (snap.data()?.rows || []).map(r => ({ ...r, ...judge(r.empNo) }));
+    await ref.set({ ...snap.data(), rows, judgedAt: new Date().toISOString() });
+  } catch { $("staleText").textContent = "다시 판정하지 못했습니다. 잠시 뒤 다시 눌러 주세요."; }
+  $("rejudgeBtn").disabled = false;
+});
+
+// ---- 회신용 표 복사 (엑셀에 바로 붙는 탭 구분)
+$("copyBtn").addEventListener("click", async () => {
+  const head = ["기준월", "사번", "이름", "부서", "직급", "판정", "사유", "공제액"].join("\t");
+  const body = current.map(r => [r.month, r.empNo, r.name, r.dept, r.rank, r.ok ? "공제" : "제외", r.ok ? "" : r.reason, r.amount].join("\t"));
+  const text = [head, ...body].join("\n");
+  try { await navigator.clipboard.writeText(text); $("copyMsg").textContent = `${current.length}명을 복사했습니다. 엑셀에 붙여 넣으세요.`; }
+  catch {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.append(ta); ta.select();
+    try { document.execCommand("copy"); $("copyMsg").textContent = `${current.length}명을 복사했습니다.`; }
+    catch { $("copyMsg").textContent = "복사하지 못했습니다."; }
+    ta.remove();
+  }
+});
+
+$("month").addEventListener("input", () => { $("month").dataset.touched = "1"; render(); });
+["q", "sort"].forEach(id => $(id).addEventListener("input", render));
+
+renderRefs(); render();
+(async () => {
+  db = window.claude?.use ? await window.claude.use("db") : null;
+  if (!db) { $("offline").hidden = false; $("rows").innerHTML = `<tr><td colspan="5" class="empty">저장소에 연결되면 명단이 여기에 나옵니다.</td></tr>`; return; }
+  db.collection("ref").onSnapshot(snap => {
+    refs = Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
+    renderRefs(); render();
+  }, () => { $("offline").hidden = false; });
+  db.collection("months").onSnapshot(snap => {
+    records = snap.docs.flatMap(d => {
+      const m = d.data();
+      return (m.rows || []).map(r => ({ ...r, month: d.id, judgedAt: m.judgedAt, example: !!m.example }));
+    });
+    fillMonths(); render();
+  }, () => { $("offline").hidden = false; });
+})();
+</script>
